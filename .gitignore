@@ -1,0 +1,21 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
+*.swp
+*.lock
+
+# Archives
+*.xcarchive
+*.ipa
+*.app.dSYM.zip
+
+# Secrets / credentials
+*.env
+.env.*
