@@ -1,5 +1,7 @@
 import SwiftUI
+import SwiftUI
 import Combine
+import AppKit
 
 @MainActor
 class MonitorState: ObservableObject {
@@ -32,6 +34,8 @@ class MonitorState: ObservableObject {
     @AppStorage("snap_yesterday_site1_used") var snapYesterdaySite1Used: Double = 0
     @AppStorage("snap_yesterday_site2_used") var snapYesterdaySite2Used: Double = 0
     @AppStorage("snap_yesterday_date") var snapYesterdayDate: String = ""
+    // Webhook 日报已发送标记（记录已发送日报的日期，防止重复发送）
+    @AppStorage("webhook_report_sent_date") var webhookReportSentDate: String = ""
     // MARK: - 运行时状态
     @Published var site1Balance: Double = 0
     @Published var site1Used: Double = 0
@@ -50,7 +54,8 @@ class MonitorState: ObservableObject {
     @Published var errorMessage: String?
 
     private var refreshTimer: AnyCancellable?
-    private var midnightTimer: AnyCancellable?
+    private var midnightTimer: DispatchSourceTimer?
+    private var wakeObserver: NSObjectProtocol?
     private let api = APIService()
     private let webhook = WebhookService()
 
@@ -136,7 +141,15 @@ class MonitorState: ObservableObject {
     init() {
         startRefreshTimer()
         scheduleMidnightSnapshot()
+        observeSystemWake()
         Task { await refresh() }
+    }
+
+    deinit {
+        midnightTimer?.cancel()
+        if let observer = wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
     }
 
     // MARK: - 快照逻辑
@@ -228,24 +241,61 @@ class MonitorState: ObservableObject {
     }
 
     private func scheduleMidnightSnapshot() {
+        midnightTimer?.cancel()
+
         let now = Date()
         let calendar = Calendar.current
-        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) else { return }
-        let interval = tomorrow.timeIntervalSince(now)
+        guard let nextMidnight = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) else { return }
+        let interval = nextMidnight.timeIntervalSince(now)
 
-        midnightTimer = Just(())
-            .delay(for: .seconds(interval), scheduler: RunLoop.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                Task {
-                    await self.refresh() // 刷新数据会自动触发快照
-                    // 发送 Webhook 日报
-                    if self.webhookEnabled, !self.webhookURL.isEmpty {
-                        await self.sendDailyReport()
-                    }
-                    self.scheduleMidnightSnapshot()
-                }
+        // 使用 DispatchSourceTimer —— 基于挂钟时间（wall clock），即使系统睡眠也能在唤醒后立即触发
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(wallDeadline: .now() + interval, leeway: .seconds(1))
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.handleMidnightTrigger()
             }
+        }
+        timer.resume()
+        midnightTimer = timer
+    }
+
+    /// 系统从睡眠唤醒时检查是否错过了午夜触发
+    private func observeSystemWake() {
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.checkAndSendDailyReport()
+                // 唤醒后重新校准午夜定时器
+                self.scheduleMidnightSnapshot()
+            }
+        }
+    }
+
+    /// 午夜定时器触发时执行
+    private func handleMidnightTrigger() async {
+        await refresh() // 刷新数据，自动触发快照轮转
+        await checkAndSendDailyReport()
+        scheduleMidnightSnapshot() // 安排下一个午夜
+    }
+
+    /// 检查今天是否已发送日报，若未发送则发送
+    private func checkAndSendDailyReport() async {
+        let today = todayString
+        guard webhookEnabled, !webhookURL.isEmpty else { return }
+        guard webhookReportSentDate != today else { return } // 今天已发送，跳过
+
+        // 先确保数据是最新的
+        if lastRefresh == nil || Date().timeIntervalSince(lastRefresh!) > 60 {
+            await refresh()
+        }
+        await sendDailyReport()
+        webhookReportSentDate = today
     }
 
     // MARK: - Webhook
@@ -281,6 +331,7 @@ class MonitorState: ObservableObject {
         snapYesterdaySite2Used = 0
         site1UsedToday = 0
         site2UsedToday = 0
+        webhookReportSentDate = ""
     }
 }
 
