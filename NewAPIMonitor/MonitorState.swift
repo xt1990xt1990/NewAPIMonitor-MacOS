@@ -34,6 +34,9 @@ class MonitorState: ObservableObject {
     @AppStorage("snap_yesterday_site1_used") var snapYesterdaySite1Used: Double = 0
     @AppStorage("snap_yesterday_site2_used") var snapYesterdaySite2Used: Double = 0
     @AppStorage("snap_yesterday_date") var snapYesterdayDate: String = ""
+    // 前日快照（用于日报中"昨日"对比）
+    @AppStorage("snap_day_before_yesterday_site1_used") var snapDayBeforeYesterdaySite1Used: Double = 0
+    @AppStorage("snap_day_before_yesterday_site2_used") var snapDayBeforeYesterdaySite2Used: Double = 0
     // Webhook 日报已发送标记（记录已发送日报的日期，防止重复发送）
     @AppStorage("webhook_report_sent_date") var webhookReportSentDate: String = ""
     // MARK: - 运行时状态
@@ -138,6 +141,17 @@ class MonitorState: ObservableObject {
         return max(0, snapSite2Used - snapYesterdaySite2Used)
     }
 
+    /// 前日消耗（日报中用作"昨日"对比）
+    var site1DayBeforeYesterdayDelta: Double {
+        guard snapDayBeforeYesterdaySite1Used > 0 else { return 0 }
+        return max(0, snapYesterdaySite1Used - snapDayBeforeYesterdaySite1Used)
+    }
+
+    var site2DayBeforeYesterdayDelta: Double {
+        guard snapDayBeforeYesterdaySite2Used > 0 else { return 0 }
+        return max(0, snapYesterdaySite2Used - snapDayBeforeYesterdaySite2Used)
+    }
+
     init() {
         startRefreshTimer()
         scheduleMidnightSnapshot()
@@ -163,12 +177,13 @@ class MonitorState: ObservableObject {
             return
         }
 
-        // 把当前快照挪到"昨日"
+        // 把"昨日"挪到"前日"，再把当前快照挪到"昨日"
         if !snapDate.isEmpty {
+            snapDayBeforeYesterdaySite1Used = snapYesterdaySite1Used
+            snapDayBeforeYesterdaySite2Used = snapYesterdaySite2Used
             snapYesterdaySite1Used = snapSite1Used
             snapYesterdaySite2Used = snapSite2Used
             snapYesterdayDate = snapDate
-
         }
 
         // 记录今日快照 = 当前 API 已用额度
@@ -301,16 +316,19 @@ class MonitorState: ObservableObject {
     // MARK: - Webhook
 
     func sendDailyReport() async {
+        // 日报在午夜后发送，快照已轮转：
+        // yesterdayDelta = 刚结束的一天消耗（报告中显示为"今日"）
+        // dayBeforeYesterdayDelta = 前天消耗（报告中显示为"昨日"，用于对比）
         let payload = webhook.buildDailyReport(
             site1Name: site1Name,
             site1Enabled: site1Enabled,
-            site1TodayUsed: site1UsedToday,
-            site1YesterdayUsed: site1YesterdayDelta,
+            site1TodayUsed: site1YesterdayDelta,
+            site1YesterdayUsed: site1DayBeforeYesterdayDelta,
             site1Cumulative: site1Used,
             site2Name: site2Name,
             site2Enabled: site2Enabled,
-            site2TodayUsed: site2UsedToday,
-            site2YesterdayUsed: site2YesterdayDelta,
+            site2TodayUsed: site2YesterdayDelta,
+            site2YesterdayUsed: site2DayBeforeYesterdayDelta,
             site2Cumulative: site2Used
         )
         let success = await webhook.send(payload: payload, to: webhookURL)
@@ -329,6 +347,8 @@ class MonitorState: ObservableObject {
         snapYesterdayDate = ""
         snapYesterdaySite1Used = 0
         snapYesterdaySite2Used = 0
+        snapDayBeforeYesterdaySite1Used = 0
+        snapDayBeforeYesterdaySite2Used = 0
         site1UsedToday = 0
         site2UsedToday = 0
         webhookReportSentDate = ""
