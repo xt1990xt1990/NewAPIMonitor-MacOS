@@ -47,7 +47,8 @@ struct WebhookService {
         hubTodayCost: Double = 0,
         hubYesterdayCost: Double = 0,
         hubCalls: Int = 0,
-        hubTotalTokens: Int = 0
+        hubTotalTokens: Int = 0,
+        reportDate: Date = Date()
     ) -> DiscordPayload {
         var fields: [DiscordEmbed.Field] = []
 
@@ -80,7 +81,7 @@ struct WebhookService {
 
         let embed = DiscordEmbed(
             title: "📈 NewAPI 每日消耗报告",
-            description: formatDate(Date()),
+            description: "报告日期：\(formatDate(reportDate))",
             color: 0x5865F2, // Discord blurple
             fields: fields,
             footer: DiscordEmbed.Footer(text: "NewAPI Monitor for macOS"),
@@ -98,17 +99,17 @@ struct WebhookService {
     ) -> [DiscordEmbed.Field] {
         let trend: String
         if todayUsed > yesterdayUsed {
-            trend = "📈 较昨日上升"
+            trend = "📈 较前日上升"
         } else if todayUsed < yesterdayUsed {
-            trend = "📉 较昨日下降"
+            trend = "📉 较前日下降"
         } else {
-            trend = "➡️ 与昨日持平"
+            trend = "➡️ 与前日持平"
         }
 
         return [
             DiscordEmbed.Field(
                 name: "🔹 \(name)",
-                value: String(format: "今日: $%.2f ｜ 昨日: $%.2f\n%@ ｜ 累计: $%.2f",
+                value: String(format: "昨日: $%.2f ｜ 前日: $%.2f\n%@ ｜ 累计: $%.2f",
                               todayUsed, yesterdayUsed, trend, cumulative),
                 inline: false
             )
@@ -123,11 +124,11 @@ struct WebhookService {
     ) -> [DiscordEmbed.Field] {
         let trend: String
         if todayCost > yesterdayCost {
-            trend = "📈 较昨日上升"
+            trend = "📈 较前日上升"
         } else if todayCost < yesterdayCost {
-            trend = "📉 较昨日下降"
+            trend = "📉 较前日下降"
         } else {
-            trend = "➡️ 与昨日持平"
+            trend = "➡️ 与前日持平"
         }
 
         let fmtTokens: String
@@ -142,7 +143,7 @@ struct WebhookService {
         return [
             DiscordEmbed.Field(
                 name: "🤖 Claude Code Hub",
-                value: String(format: "今日: $%.2f ｜ 昨日: $%.2f\n%@ ｜ 调用: %d 次 ｜ Token: %@",
+                value: String(format: "昨日: $%.2f ｜ 前日: $%.2f\n%@ ｜ 调用: %d 次 ｜ Token: %@",
                               todayCost, yesterdayCost, trend, calls, fmtTokens),
                 inline: false
             )

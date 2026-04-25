@@ -27,6 +27,12 @@ class MonitorState: ObservableObject {
     @AppStorage("snap_hub_cost") var snapHubCost: Double = 0
     @AppStorage("snap_yesterday_hub_cost") var snapYesterdayHubCost: Double = 0
     @AppStorage("snap_day_before_yesterday_hub_cost") var snapDayBeforeYesterdayHubCost: Double = 0
+    @AppStorage("snap_hub_calls") var snapHubCalls: Int = 0
+    @AppStorage("snap_yesterday_hub_calls") var snapYesterdayHubCalls: Int = 0
+    @AppStorage("snap_day_before_yesterday_hub_calls") var snapDayBeforeYesterdayHubCalls: Int = 0
+    @AppStorage("snap_hub_tokens") var snapHubTokens: Int = 0
+    @AppStorage("snap_yesterday_hub_tokens") var snapYesterdayHubTokens: Int = 0
+    @AppStorage("snap_day_before_yesterday_hub_tokens") var snapDayBeforeYesterdayHubTokens: Int = 0
 
     // MARK: - 通用设置
     @AppStorage("refreshInterval") var refreshInterval: Double = 60
@@ -212,7 +218,7 @@ class MonitorState: ObservableObject {
 
     /// 检查是否需要做今日快照（每日首次启动或跨天）
     /// 必须在拿到 API 数据后调用
-    private func ensureTodaySnapshot(site1Used: Double, site2Used: Double, hubCost: Double) {
+    private func ensureTodaySnapshot(site1Used: Double, site2Used: Double, hubCost: Double, hubCalls: Int, hubTokens: Int) {
         let today = todayString
         if snapDate == today {
             return
@@ -223,9 +229,13 @@ class MonitorState: ObservableObject {
             snapDayBeforeYesterdaySite1Used = snapYesterdaySite1Used
             snapDayBeforeYesterdaySite2Used = snapYesterdaySite2Used
             snapDayBeforeYesterdayHubCost = snapYesterdayHubCost
+            snapDayBeforeYesterdayHubCalls = snapYesterdayHubCalls
+            snapDayBeforeYesterdayHubTokens = snapYesterdayHubTokens
             snapYesterdaySite1Used = snapSite1Used
             snapYesterdaySite2Used = snapSite2Used
             snapYesterdayHubCost = snapHubCost
+            snapYesterdayHubCalls = snapHubCalls
+            snapYesterdayHubTokens = snapHubTokens
             snapYesterdayDate = snapDate
         }
 
@@ -233,6 +243,8 @@ class MonitorState: ObservableObject {
         snapSite1Used = site1Used
         snapSite2Used = site2Used
         snapHubCost = hubCost
+        snapHubCalls = hubCalls
+        snapHubTokens = hubTokens
         snapDate = today
         let tf = DateFormatter()
         tf.dateFormat = "HH:mm:ss"
@@ -251,7 +263,13 @@ class MonitorState: ObservableObject {
         _ = await (r1, r2, rHub)
 
         // 拿到数据后检查快照（Hub 的 costUsd 是每日数据，不需要减快照）
-        ensureTodaySnapshot(site1Used: site1Used, site2Used: site2Used, hubCost: hubCostToday)
+        ensureTodaySnapshot(
+            site1Used: site1Used,
+            site2Used: site2Used,
+            hubCost: hubCostToday,
+            hubCalls: hubCalls,
+            hubTokens: hubTotalTokens
+        )
 
         // 计算今日消耗 = 当前已用 - 今日快照已用
         site1UsedToday = max(0, site1Used - snapSite1Used)
@@ -389,8 +407,9 @@ class MonitorState: ObservableObject {
             hubEnabled: hubEnabled,
             hubTodayCost: hubYesterdayDelta,
             hubYesterdayCost: hubDayBeforeYesterdayDelta,
-            hubCalls: hubCalls,
-            hubTotalTokens: hubTotalTokens
+            hubCalls: snapYesterdayHubCalls,
+            hubTotalTokens: snapYesterdayHubTokens,
+            reportDate: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
         )
         let result = await webhook.sendWithResult(payload: payload, to: webhookURL)
         if !result.success {
@@ -407,13 +426,19 @@ class MonitorState: ObservableObject {
         snapSite1Used = 0
         snapSite2Used = 0
         snapHubCost = 0
+        snapHubCalls = 0
+        snapHubTokens = 0
         snapYesterdayDate = ""
         snapYesterdaySite1Used = 0
         snapYesterdaySite2Used = 0
         snapYesterdayHubCost = 0
+        snapYesterdayHubCalls = 0
+        snapYesterdayHubTokens = 0
         snapDayBeforeYesterdaySite1Used = 0
         snapDayBeforeYesterdaySite2Used = 0
         snapDayBeforeYesterdayHubCost = 0
+        snapDayBeforeYesterdayHubCalls = 0
+        snapDayBeforeYesterdayHubTokens = 0
         site1UsedToday = 0
         site2UsedToday = 0
         hubCostToday = 0
