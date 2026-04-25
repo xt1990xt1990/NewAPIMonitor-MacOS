@@ -18,6 +18,16 @@ class MonitorState: ObservableObject {
     @AppStorage("site2_enabled") var site2Enabled = false
     @AppStorage("site2_logo") var site2Logo = ""
 
+    // MARK: - Claude Code Hub 配置
+    @AppStorage("hub_enabled") var hubEnabled = false
+    @AppStorage("hub_url") var hubURL = ""
+    @AppStorage("hub_token") var hubToken = ""
+
+    // MARK: - Hub 快照（持久化）
+    @AppStorage("snap_hub_cost") var snapHubCost: Double = 0
+    @AppStorage("snap_yesterday_hub_cost") var snapYesterdayHubCost: Double = 0
+    @AppStorage("snap_day_before_yesterday_hub_cost") var snapDayBeforeYesterdayHubCost: Double = 0
+
     // MARK: - 通用设置
     @AppStorage("refreshInterval") var refreshInterval: Double = 60
     @AppStorage("displayMode") var displayMode: DisplayMode = .today
@@ -51,6 +61,12 @@ class MonitorState: ObservableObject {
     @Published var site2Total: Double = 0
     @Published var site2Unlimited = false
     @Published var site2UsedToday: Double = 0
+
+    // MARK: - Hub 运行时状态
+    @Published var hubCostToday: Double = 0
+    @Published var hubCalls: Int = 0
+    @Published var hubTotalTokens: Int = 0
+    @Published var hubUserBreakdown: [HubUserStat] = []
 
     @Published var lastRefresh: Date?
     @Published var isLoading = false
@@ -95,6 +111,10 @@ class MonitorState: ObservableObject {
         }
     }
 
+    var hubDisplayValue: String {
+        return String(format: "$%.2f", hubCostToday)
+    }
+
     struct MenuBarPart: Identifiable {
         let id = UUID()
         let value: String
@@ -114,6 +134,13 @@ class MonitorState: ObservableObject {
             parts.append(MenuBarPart(value: site2IconName, isIcon: true))
             parts.append(MenuBarPart(value: site2DisplayValue, isIcon: false))
         }
+        if hubEnabled && (site1Enabled || site2Enabled) {
+            parts.append(MenuBarPart(value: " ┃ ", isIcon: false))
+        }
+        if hubEnabled {
+            parts.append(MenuBarPart(value: "cpu.fill", isIcon: true))
+            parts.append(MenuBarPart(value: hubDisplayValue, isIcon: false))
+        }
         return parts
     }
 
@@ -126,6 +153,9 @@ class MonitorState: ObservableObject {
         if site2Enabled {
             let initial = site2Name.prefix(1).uppercased()
             segments.append("\(initial) \(site2DisplayValue)")
+        }
+        if hubEnabled {
+            segments.append("H \(hubDisplayValue)")
         }
         return segments.joined(separator: " ┃ ")
     }
@@ -152,6 +182,18 @@ class MonitorState: ObservableObject {
         return max(0, snapYesterdaySite2Used - snapDayBeforeYesterdaySite2Used)
     }
 
+    /// Hub 昨日消耗
+    var hubYesterdayDelta: Double {
+        guard snapYesterdayHubCost > 0 else { return 0 }
+        return snapYesterdayHubCost
+    }
+
+    /// Hub 前日消耗
+    var hubDayBeforeYesterdayDelta: Double {
+        guard snapDayBeforeYesterdayHubCost > 0 else { return 0 }
+        return snapDayBeforeYesterdayHubCost
+    }
+
     init() {
         startRefreshTimer()
         scheduleMidnightSnapshot()
@@ -170,10 +212,9 @@ class MonitorState: ObservableObject {
 
     /// 检查是否需要做今日快照（每日首次启动或跨天）
     /// 必须在拿到 API 数据后调用
-    private func ensureTodaySnapshot(site1Used: Double, site2Used: Double) {
+    private func ensureTodaySnapshot(site1Used: Double, site2Used: Double, hubCost: Double) {
         let today = todayString
         if snapDate == today {
-            // 今天已经快照过，不需要再做
             return
         }
 
@@ -181,14 +222,17 @@ class MonitorState: ObservableObject {
         if !snapDate.isEmpty {
             snapDayBeforeYesterdaySite1Used = snapYesterdaySite1Used
             snapDayBeforeYesterdaySite2Used = snapYesterdaySite2Used
+            snapDayBeforeYesterdayHubCost = snapYesterdayHubCost
             snapYesterdaySite1Used = snapSite1Used
             snapYesterdaySite2Used = snapSite2Used
+            snapYesterdayHubCost = snapHubCost
             snapYesterdayDate = snapDate
         }
 
         // 记录今日快照 = 当前 API 已用额度
         snapSite1Used = site1Used
         snapSite2Used = site2Used
+        snapHubCost = hubCost
         snapDate = today
         let tf = DateFormatter()
         tf.dateFormat = "HH:mm:ss"
@@ -203,10 +247,11 @@ class MonitorState: ObservableObject {
 
         async let r1: Void = refreshSite1()
         async let r2: Void = refreshSite2()
-        _ = await (r1, r2)
+        async let rHub: Void = refreshHub()
+        _ = await (r1, r2, rHub)
 
-        // 拿到数据后检查快照
-        ensureTodaySnapshot(site1Used: site1Used, site2Used: site2Used)
+        // 拿到数据后检查快照（Hub 的 costUsd 是每日数据，不需要减快照）
+        ensureTodaySnapshot(site1Used: site1Used, site2Used: site2Used, hubCost: hubCostToday)
 
         // 计算今日消耗 = 当前已用 - 今日快照已用
         site1UsedToday = max(0, site1Used - snapSite1Used)
@@ -239,6 +284,19 @@ class MonitorState: ObservableObject {
             site2Unlimited = result.isUnlimited
         } catch {
             errorMessage = (errorMessage ?? "") + " 站点2: \(error.localizedDescription)"
+        }
+    }
+
+    private func refreshHub() async {
+        guard hubEnabled, !hubURL.isEmpty, !hubToken.isEmpty else { return }
+        do {
+            let result = try await api.fetchHubStats(hubURL: hubURL, token: hubToken)
+            hubCostToday = result.costUsd
+            hubCalls = result.calls
+            hubTotalTokens = result.totalTokens
+            hubUserBreakdown = result.userBreakdown
+        } catch {
+            errorMessage = (errorMessage ?? "") + " Hub: \(error.localizedDescription)"
         }
     }
 
@@ -316,9 +374,6 @@ class MonitorState: ObservableObject {
     // MARK: - Webhook
 
     func sendDailyReport() async {
-        // 日报在午夜后发送，快照已轮转：
-        // yesterdayDelta = 刚结束的一天消耗（报告中显示为"今日"）
-        // dayBeforeYesterdayDelta = 前天消耗（报告中显示为"昨日"，用于对比）
         let payload = webhook.buildDailyReport(
             site1Name: site1Name,
             site1Enabled: site1Enabled,
@@ -329,7 +384,12 @@ class MonitorState: ObservableObject {
             site2Enabled: site2Enabled,
             site2TodayUsed: site2YesterdayDelta,
             site2YesterdayUsed: site2DayBeforeYesterdayDelta,
-            site2Cumulative: site2Used
+            site2Cumulative: site2Used,
+            hubEnabled: hubEnabled,
+            hubTodayCost: hubYesterdayDelta,
+            hubYesterdayCost: hubDayBeforeYesterdayDelta,
+            hubCalls: hubCalls,
+            hubTotalTokens: hubTotalTokens
         )
         let success = await webhook.send(payload: payload, to: webhookURL)
         if !success {
@@ -344,13 +404,20 @@ class MonitorState: ObservableObject {
         snapTime = ""
         snapSite1Used = 0
         snapSite2Used = 0
+        snapHubCost = 0
         snapYesterdayDate = ""
         snapYesterdaySite1Used = 0
         snapYesterdaySite2Used = 0
+        snapYesterdayHubCost = 0
         snapDayBeforeYesterdaySite1Used = 0
         snapDayBeforeYesterdaySite2Used = 0
+        snapDayBeforeYesterdayHubCost = 0
         site1UsedToday = 0
         site2UsedToday = 0
+        hubCostToday = 0
+        hubCalls = 0
+        hubTotalTokens = 0
+        hubUserBreakdown = []
         webhookReportSentDate = ""
     }
 }

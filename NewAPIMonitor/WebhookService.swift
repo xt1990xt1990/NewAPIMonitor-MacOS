@@ -38,7 +38,12 @@ struct WebhookService {
         site2Enabled: Bool,
         site2TodayUsed: Double,
         site2YesterdayUsed: Double,
-        site2Cumulative: Double
+        site2Cumulative: Double,
+        hubEnabled: Bool = false,
+        hubTodayCost: Double = 0,
+        hubYesterdayCost: Double = 0,
+        hubCalls: Int = 0,
+        hubTotalTokens: Int = 0
     ) -> DiscordPayload {
         var fields: [DiscordEmbed.Field] = []
 
@@ -57,6 +62,15 @@ struct WebhookService {
                 todayUsed: site2TodayUsed,
                 yesterdayUsed: site2YesterdayUsed,
                 cumulative: site2Cumulative
+            ))
+        }
+
+        if hubEnabled {
+            fields.append(contentsOf: buildHubFields(
+                todayCost: hubTodayCost,
+                yesterdayCost: hubYesterdayCost,
+                calls: hubCalls,
+                totalTokens: hubTotalTokens
             ))
         }
 
@@ -92,6 +106,40 @@ struct WebhookService {
                 name: "🔹 \(name)",
                 value: String(format: "今日: $%.2f ｜ 昨日: $%.2f\n%@ ｜ 累计: $%.2f",
                               todayUsed, yesterdayUsed, trend, cumulative),
+                inline: false
+            )
+        ]
+    }
+
+    private func buildHubFields(
+        todayCost: Double,
+        yesterdayCost: Double,
+        calls: Int,
+        totalTokens: Int
+    ) -> [DiscordEmbed.Field] {
+        let trend: String
+        if todayCost > yesterdayCost {
+            trend = "📈 较昨日上升"
+        } else if todayCost < yesterdayCost {
+            trend = "📉 较昨日下降"
+        } else {
+            trend = "➡️ 与昨日持平"
+        }
+
+        let fmtTokens: String
+        if totalTokens >= 1_000_000 {
+            fmtTokens = String(format: "%.1fM", Double(totalTokens) / 1_000_000)
+        } else if totalTokens >= 1_000 {
+            fmtTokens = String(format: "%.1fk", Double(totalTokens) / 1_000)
+        } else {
+            fmtTokens = "\(totalTokens)"
+        }
+
+        return [
+            DiscordEmbed.Field(
+                name: "🤖 Claude Code Hub",
+                value: String(format: "今日: $%.2f ｜ 昨日: $%.2f\n%@ ｜ 调用: %d 次 ｜ Token: %@",
+                              todayCost, yesterdayCost, trend, calls, fmtTokens),
                 inline: false
             )
         ]

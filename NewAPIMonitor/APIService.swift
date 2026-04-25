@@ -7,14 +7,35 @@ struct BalanceResult {
     let isUnlimited: Bool    // 是否无限额度
 }
 
+struct HubUserStat {
+    let name: String
+    let costUsd: Double
+    let calls: Int
+    let tokens: Int
+}
+
+struct HubStatsResult {
+    let costUsd: Double      // 今日总花费
+    let calls: Int           // 总调用次数
+    let totalTokens: Int     // 总 Token 数
+    let userBreakdown: [HubUserStat]  // 用户明细
+}
+
 actor APIService {
     private let session: URLSession
+    private let directSession: URLSession
 
     init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 30
         self.session = URLSession(configuration: config)
+
+        let directConfig = URLSessionConfiguration.default
+        directConfig.timeoutIntervalForRequest = 15
+        directConfig.timeoutIntervalForResource = 30
+        directConfig.connectionProxyDictionary = [:]
+        self.directSession = URLSession(configuration: directConfig)
     }
 
     /// 获取余额信息
@@ -60,6 +81,56 @@ actor APIService {
         return totalUsage / 100.0
     }
 
+    /// 获取 Claude Code Hub 用量（通过 leaderboard API）
+    func fetchHubStats(hubURL: String, token: String) async throws -> HubStatsResult {
+        let base = hubURL.trimmingCharacters(in: .init(charactersIn: "/"))
+        let urlString = base + "/api/leaderboard?period=daily&scope=user"
+        let url = try makeURL(urlString)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("auth-token=\(token)", forHTTPHeaderField: "Cookie")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let requestSession = shouldBypassProxy(for: url) ? directSession : session
+        let (data, response) = try await requestSession.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.httpError(http.statusCode)
+        }
+
+        guard let users = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw APIError.parseError
+        }
+
+        var totalCost = 0.0
+        var totalCalls = 0
+        var totalTokens = 0
+        var breakdown: [HubUserStat] = []
+
+        for u in users {
+            let cost = toDouble(u["totalCost"]) ?? 0
+            let calls = u["totalRequests"] as? Int ?? Int(toDouble(u["totalRequests"]) ?? 0)
+            let tokens = u["totalTokens"] as? Int ?? Int(toDouble(u["totalTokens"]) ?? 0)
+            let name = u["userName"] as? String ?? "Unknown"
+
+            totalCost += cost
+            totalCalls += calls
+            totalTokens += tokens
+            breakdown.append(HubUserStat(name: name, costUsd: cost, calls: calls, tokens: tokens))
+        }
+
+        return HubStatsResult(
+            costUsd: totalCost,
+            calls: totalCalls,
+            totalTokens: totalTokens,
+            userBreakdown: breakdown
+        )
+    }
+
     // MARK: - 工具方法
 
     private func get(url: URL, token: String) async throws -> Data {
@@ -82,6 +153,20 @@ actor APIService {
     private func makeURL(_ string: String) throws -> URL {
         guard let url = URL(string: string) else { throw APIError.invalidURL }
         return url
+    }
+
+    private func shouldBypassProxy(for url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        if host == "localhost" || host.hasSuffix(".local") { return true }
+        if host.hasPrefix("10.") || host.hasPrefix("192.168.") { return true }
+
+        let parts = host.split(separator: ".").compactMap { Int($0) }
+        if parts.count == 4 {
+            if parts[0] == 172 && (16...31).contains(parts[1]) { return true }
+            if parts[0] == 127 { return true }
+        }
+
+        return false
     }
 
     private func toDouble(_ value: Any?) -> Double? {

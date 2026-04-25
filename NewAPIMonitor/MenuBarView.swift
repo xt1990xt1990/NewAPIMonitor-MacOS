@@ -48,6 +48,17 @@ struct MenuBarView: View {
                 )
             }
 
+            // Claude Code Hub
+            if state.hubEnabled {
+                HubStatusView(
+                    costToday: state.hubCostToday,
+                    calls: state.hubCalls,
+                    totalTokens: state.hubTotalTokens,
+                    userBreakdown: state.hubUserBreakdown,
+                    yesterdayCost: state.hubYesterdayDelta
+                )
+            }
+
             Divider()
 
             // 错误信息
@@ -191,6 +202,115 @@ struct SiteStatusView: View {
                 }
                 .font(.caption)
                 .help("累计消耗")
+            }
+        }
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(8)
+    }
+}
+
+// MARK: - Hub 状态卡片
+
+struct HubStatusView: View {
+    let costToday: Double
+    let calls: Int
+    let totalTokens: Int
+    let userBreakdown: [HubUserStat]
+    let yesterdayCost: Double
+
+    private var trend: String {
+        if costToday > yesterdayCost { return "↑" }
+        if costToday < yesterdayCost { return "↓" }
+        return "→"
+    }
+
+    private var trendColor: Color {
+        if costToday > yesterdayCost { return .red }
+        if costToday < yesterdayCost { return .green }
+        return .secondary
+    }
+
+    private func formatTokens(_ n: Int) -> String {
+        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
+        if n >= 1_000 { return String(format: "%.1fk", Double(n) / 1_000) }
+        return "\(n)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Claude Code Hub")
+                .font(.subheadline)
+                .fontWeight(.medium)
+
+            // 今日花费 + 调用次数 + Token
+            HStack {
+                Label {
+                    Text(String(format: "$%.2f", costToday))
+                        .monospacedDigit()
+                } icon: {
+                    Image(systemName: "dollarsign.circle")
+                        .foregroundColor(.secondary)
+                }
+                .font(.caption)
+                .help("今日花费")
+
+                Spacer()
+
+                Text("\(calls) 次")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+                    .help("调用次数")
+
+                Text("·")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+
+                Text(formatTokens(totalTokens))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+                    .help("Token")
+            }
+
+            // 趋势
+            HStack {
+                Text("今日")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+                Text(String(format: "$%.2f", costToday))
+                    .font(.system(.caption, design: .monospaced))
+                    .fontWeight(.semibold)
+
+                Text(trend)
+                    .foregroundColor(trendColor)
+                    .font(.caption)
+
+                Text(String(format: "昨日 $%.2f", yesterdayCost))
+                    .foregroundColor(.secondary)
+                    .font(.caption2)
+
+                Spacer()
+            }
+
+            // 用户明细
+            if !userBreakdown.isEmpty {
+                Divider().opacity(0.5)
+                ForEach(userBreakdown, id: \.name) { user in
+                    HStack {
+                        Text(user.name)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                        Text(String(format: "$%.2f", user.costUsd))
+                            .font(.system(.caption2, design: .monospaced))
+                        Text("(\(user.calls) 次)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
         }
         .padding(10)

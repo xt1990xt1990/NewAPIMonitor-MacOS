@@ -108,6 +108,16 @@ struct SitesSettingsTab: View {
                     enabled: $state.site2Enabled, name: $state.site2Name,
                     url: $state.site2URL, token: $state.site2Token
                 )
+
+                // Claude Code Hub
+                SettingsCard(icon: "cpu.fill", title: "Claude Code Hub") {
+                    Toggle("启用", isOn: $state.hubEnabled).font(.system(size: 13))
+                    Divider().opacity(0.5)
+                    SettingsTextField(label: "Hub 地址", text: $state.hubURL, isURL: true)
+                    SettingsTextField(label: "Token", text: $state.hubToken, isSecure: true)
+                }
+                .opacity(state.hubEnabled ? 1 : 0.55)
+
                 HStack {
                     Button(action: {
                         applyStatus = nil
@@ -297,6 +307,17 @@ struct DataSettingsTab: View {
                         Spacer()
                         Text(String(format: "$%.2f", state.site2Used))
                             .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    }
+                    if state.hubEnabled {
+                        Divider().opacity(0.5)
+                        HStack {
+                            Text("Hub 今日花费")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(String(format: "$%.2f", state.hubCostToday))
+                                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        }
                     }
                     Divider().opacity(0.5)
                     HStack {
