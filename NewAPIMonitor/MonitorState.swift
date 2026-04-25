@@ -367,13 +367,14 @@ class MonitorState: ObservableObject {
         if lastRefresh == nil || Date().timeIntervalSince(lastRefresh!) > 60 {
             await refresh()
         }
-        await sendDailyReport()
-        webhookReportSentDate = today
+        if await sendDailyReport() {
+            webhookReportSentDate = today
+        }
     }
 
     // MARK: - Webhook
 
-    func sendDailyReport() async {
+    func sendDailyReport() async -> Bool {
         let payload = webhook.buildDailyReport(
             site1Name: site1Name,
             site1Enabled: site1Enabled,
@@ -391,10 +392,11 @@ class MonitorState: ObservableObject {
             hubCalls: hubCalls,
             hubTotalTokens: hubTotalTokens
         )
-        let success = await webhook.send(payload: payload, to: webhookURL)
-        if !success {
-            errorMessage = "Webhook 日报发送失败"
+        let result = await webhook.sendWithResult(payload: payload, to: webhookURL)
+        if !result.success {
+            errorMessage = "Webhook 日报发送失败: \(result.message ?? "未知错误")"
         }
+        return result.success
     }
 
     // MARK: - 重置

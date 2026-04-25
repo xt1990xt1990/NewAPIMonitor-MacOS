@@ -1,6 +1,10 @@
 import Foundation
 
 struct WebhookService {
+    struct SendResult {
+        let success: Bool
+        let message: String?
+    }
 
     struct DiscordEmbed: Codable {
         let title: String?
@@ -148,23 +152,51 @@ struct WebhookService {
     // MARK: - 发送
 
     func send(payload: DiscordPayload, to webhookURL: String) async -> Bool {
-        guard let url = URL(string: webhookURL) else { return false }
+        let result = await sendWithResult(payload: payload, to: webhookURL)
+        return result.success
+    }
+
+    func sendWithResult(payload: DiscordPayload, to webhookURL: String) async -> SendResult {
+        guard let url = URL(string: webhookURL) else {
+            return SendResult(success: false, message: "Webhook URL 无效")
+        }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        guard let body = try? JSONEncoder().encode(payload) else { return false }
+        guard let body = try? JSONEncoder().encode(payload) else {
+            return SendResult(success: false, message: "Webhook 内容编码失败")
+        }
         request.httpBody = body
 
+        let primaryResult = await send(request: request, session: .shared)
+        if primaryResult.success {
+            return primaryResult
+        }
+
+        let directConfig = URLSessionConfiguration.default
+        directConfig.timeoutIntervalForRequest = 15
+        directConfig.timeoutIntervalForResource = 30
+        directConfig.connectionProxyDictionary = [:]
+        let directSession = URLSession(configuration: directConfig)
+        let directResult = await send(request: request, session: directSession)
+        return directResult.success ? directResult : primaryResult
+    }
+
+    private func send(request: URLRequest, session: URLSession) async -> SendResult {
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             if let http = response as? HTTPURLResponse {
-                return (200...299).contains(http.statusCode)
+                if (200...299).contains(http.statusCode) {
+                    return SendResult(success: true, message: nil)
+                }
+                let responseBody = String(data: data, encoding: .utf8)
+                return SendResult(success: false, message: responseBody ?? "HTTP 错误 \(http.statusCode)")
             }
-            return false
+            return SendResult(success: false, message: "Webhook 响应无效")
         } catch {
-            return false
+            return SendResult(success: false, message: error.localizedDescription)
         }
     }
 
@@ -183,6 +215,23 @@ struct WebhookService {
             ]
         )
         return await send(payload: payload, to: url)
+    }
+
+    func sendTestWithResult(url: String) async -> SendResult {
+        let payload = DiscordPayload(
+            content: nil,
+            embeds: [
+                DiscordEmbed(
+                    title: "🧪 测试消息",
+                    description: "NewAPI Monitor for macOS 连接测试成功！",
+                    color: 0x57F287, // green
+                    fields: nil,
+                    footer: DiscordEmbed.Footer(text: "NewAPI Monitor"),
+                    timestamp: ISO8601DateFormatter().string(from: Date())
+                )
+            ]
+        )
+        return await sendWithResult(payload: payload, to: url)
     }
 
     // MARK: - 工具

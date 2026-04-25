@@ -246,8 +246,8 @@ struct WebhookSettingsTab: View {
                             Task {
                                 testingWebhook = true
                                 webhookTestResult = nil
-                                let success = await WebhookService().sendTest(url: state.webhookURL)
-                                webhookTestResult = success ? "✅ 发送成功" : "❌ 发送失败"
+                                let result = await WebhookService().sendTestWithResult(url: state.webhookURL)
+                                webhookTestResult = result.success ? "✅ 发送成功" : "❌ \(result.message ?? "发送失败")"
                                 testingWebhook = false
                             }
                         }) {
