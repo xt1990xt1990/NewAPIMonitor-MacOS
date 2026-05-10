@@ -1,15 +1,15 @@
-# NewAPI Monitor for macOS
+# APIMonitor for macOS
 
 <div align="center">
 
 ![macOS](https://img.shields.io/badge/macOS-11.0+-blue.svg)
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Version](https://img.shields.io/github/v/release/xt1990xt1990/NewAPIMonitor-MacOS)
+![Version](https://img.shields.io/github/v/release/xt1990xt1990/APIMonitor-MacOS)
 
 一款优雅的 macOS 菜单栏应用，实时监控 NewAPI 服务的 API 消耗情况
 
-[下载最新版本](https://github.com/xt1990xt1990/NewAPIMonitor-MacOS/releases/latest) · [报告问题](https://github.com/xt1990xt1990/NewAPIMonitor-MacOS/issues) · [功能建议](https://github.com/xt1990xt1990/NewAPIMonitor-MacOS/issues)
+[下载最新版本](https://github.com/xt1990xt1990/APIMonitor-MacOS/releases/latest) · [报告问题](https://github.com/xt1990xt1990/APIMonitor-MacOS/issues) · [功能建议](https://github.com/xt1990xt1990/APIMonitor-MacOS/issues)
 
 </div>
 
@@ -47,20 +47,20 @@
 
 ### 方式一：下载预编译版本（推荐）
 
-1. 前往 [Releases](https://github.com/xt1990xt1990/NewAPIMonitor-MacOS/releases/latest) 页面
-2. 下载最新的 `NewAPIMonitor-MacOS-vX.X.X.zip`
-3. 解压并拖动 `NewAPIMonitor.app` 到应用程序文件夹
+1. 前往 [Releases](https://github.com/xt1990xt1990/APIMonitor-MacOS/releases/latest) 页面
+2. 下载最新的 `APIMonitor-MacOS-vX.X.X.zip`
+3. 解压并拖动 `APIMonitor.app` 到应用程序文件夹
 4. 首次打开时，右键点击应用选择"打开"（绕过 Gatekeeper）
 
 ### 方式二：从源码编译
 
 ```bash
 # 克隆仓库
-git clone https://github.com/xt1990xt1990/NewAPIMonitor-MacOS.git
-cd NewAPIMonitor-MacOS
+git clone https://github.com/xt1990xt1990/APIMonitor-MacOS.git
+cd APIMonitor-MacOS
 
 # 使用 Xcode 打开项目
-open NewAPIMonitor.xcodeproj
+open APIMonitor.xcodeproj
 
 # 在 Xcode 中按 Cmd+R 运行
 ```
@@ -184,8 +184,8 @@ NSWorkspace.shared.notificationCenter.addObserver(
 
 ### 项目结构
 ```
-NewAPIMonitor/
-├── NewAPIMonitorApp.swift      # 应用入口
+APIMonitor/
+├── APIMonitorApp.swift      # 应用入口
 ├── MonitorState.swift           # 核心状态管理
 ├── MenuBarView.swift            # 菜单栏视图
 ├── SettingsView.swift           # 设置界面
@@ -197,14 +197,14 @@ NewAPIMonitor/
 ### 构建命令
 ```bash
 # Debug 构建
-xcodebuild -scheme NewAPIMonitor -configuration Debug build
+xcodebuild -scheme APIMonitor -configuration Debug build
 
 # Release 构建
-xcodebuild -scheme NewAPIMonitor -configuration Release build
+xcodebuild -scheme APIMonitor -configuration Release build
 
 # 打包
 cd ~/Library/Developer/Xcode/DerivedData/.../Build/Products/Release
-zip -r NewAPIMonitor.zip NewAPIMonitor.app
+zip -r APIMonitor.zip APIMonitor.app
 ```
 
 ---
@@ -232,7 +232,7 @@ zip -r NewAPIMonitor.zip NewAPIMonitor.app
 - 实时菜单栏显示
 - Webhook 日报推送
 
-[查看完整更新日志](https://github.com/xt1990xt1990/NewAPIMonitor-MacOS/releases)
+[查看完整更新日志](https://github.com/xt1990xt1990/APIMonitor-MacOS/releases)
 
 ---
 
@@ -300,8 +300,8 @@ zip -r NewAPIMonitor.zip NewAPIMonitor.app
 
 ## 📮 联系方式
 
-- **Issues**: [GitHub Issues](https://github.com/xt1990xt1990/NewAPIMonitor-MacOS/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/xt1990xt1990/NewAPIMonitor-MacOS/discussions)
+- **Issues**: [GitHub Issues](https://github.com/xt1990xt1990/APIMonitor-MacOS/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/xt1990xt1990/APIMonitor-MacOS/discussions)
 
 ---
 

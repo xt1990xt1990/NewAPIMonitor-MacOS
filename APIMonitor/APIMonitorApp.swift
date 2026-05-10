@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct NewAPIMonitorApp: App {
+struct APIMonitorApp: App {
     @StateObject private var state = MonitorState()
 
     var body: some Scene {

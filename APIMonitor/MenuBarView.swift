@@ -9,7 +9,7 @@ struct MenuBarView: View {
             HStack {
                 Image(systemName: "chart.bar.fill")
                     .foregroundColor(.accentColor)
-                Text("NewAPI Monitor")
+                Text("APIMonitor")
                     .font(.headline)
                 Spacer()
                 if state.isLoading {

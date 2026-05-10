@@ -84,7 +84,7 @@ struct WebhookService {
             description: "报告日期：\(formatDate(reportDate))",
             color: 0x5865F2, // Discord blurple
             fields: fields,
-            footer: DiscordEmbed.Footer(text: "NewAPI Monitor for macOS"),
+            footer: DiscordEmbed.Footer(text: "APIMonitor for macOS"),
             timestamp: ISO8601DateFormatter().string(from: Date())
         )
 
@@ -207,10 +207,10 @@ struct WebhookService {
             embeds: [
                 DiscordEmbed(
                     title: "🧪 测试消息",
-                    description: "NewAPI Monitor for macOS 连接测试成功！",
+                    description: "APIMonitor for macOS 连接测试成功！",
                     color: 0x57F287, // green
                     fields: nil,
-                    footer: DiscordEmbed.Footer(text: "NewAPI Monitor"),
+                    footer: DiscordEmbed.Footer(text: "APIMonitor"),
                     timestamp: ISO8601DateFormatter().string(from: Date())
                 )
             ]
@@ -224,10 +224,10 @@ struct WebhookService {
             embeds: [
                 DiscordEmbed(
                     title: "🧪 测试消息",
-                    description: "NewAPI Monitor for macOS 连接测试成功！",
+                    description: "APIMonitor for macOS 连接测试成功！",
                     color: 0x57F287, // green
                     fields: nil,
-                    footer: DiscordEmbed.Footer(text: "NewAPI Monitor"),
+                    footer: DiscordEmbed.Footer(text: "APIMonitor"),
                     timestamp: ISO8601DateFormatter().string(from: Date())
                 )
             ]
